@@ -1,0 +1,13 @@
+Q1: Micro-Architectural Root Cause of False Sharing
+In Variant 1, the naive_hits array is stored in contiguous memory. Since each uint64_t element occupies 8 bytes, an 8-element segment fits into a single 64-byte L1 cache line. When threads update naive_hits[tid]++ concurrently across cores on the Apple M4, the cache coherence protocol continually invalidates and ping-pongs this cache line between core L1 caches (cache line thrashing), causing heavy interconnect bus contention and severe performance degradation. In Variant 2, OpenMP reduction eliminates the shared array by using thread-private variables.
+
+Q2: Hyperthreading (SMT) Saturation & Physical Core Ceilings
+The Apple M4 processor does not feature SMT (Hyper-Threading); each logical thread maps directly to a physical core. When scaling the thread count beyond the available high-performance P-cores (Performance cores), the OS scheduler offloads threads to energy-efficient E-cores (Efficiency cores). Speedup deviates from linear scaling because E-cores operate at lower clock frequencies and have reduced execution throughput compared to P-cores.
+
+Q3: Empirical vs. Theoretical Amdahl Discrepancy
+Amdahl's Law assumes zero parallelization overhead and instant thread communication. The empirical speedup S_emp(k) falls short of the theoretical S_theo(k) due to:
+1. OpenMP runtime overhead associated with thread creation, distribution, and synchronization barriers.
+2. Memory bus and L2 cache bandwidth saturation when multiple physical cores concurrently perform memory operations.
+
+Q4: The Scheduling Trade-Off Dilemma
+Using small chunk sizes (schedule(dynamic, 100)) introduces substantial runtime overhead due to frequent atomic updates to the task queue. Conversely, static scheduling can lead to load imbalance for irregular workloads like the Collatz conjecture. The optimal balance is achieved using schedule(dynamic, 10000) or schedule(guided), which reduces scheduling overhead while maintaining dynamic load balancing across cores.
